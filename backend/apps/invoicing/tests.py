@@ -252,6 +252,110 @@ class KleinunternehmerInvoiceTests(APITestCase):
         self.assertEqual(inv.total_gross, Decimal("380.80"))
 
 
+class InvoicePreviewTests(APITestCase):
+    """Vorschau der abrechenbaren Schichten – ohne Rechnung/Statusänderung."""
+
+    @classmethod
+    def setUpTestData(cls):
+        from datetime import time
+
+        from apps.customers.models import CustomerContract
+        from apps.shifts.models import Shift
+
+        cls.org = Organization.objects.create(name="Org P", slug="org-p")
+        cls.sb_org = Organization.objects.create(
+            name="Org PSB", slug="org-psb", is_small_business=True,
+        )
+        cls.admin = User.objects.create_user(
+            email="p@org.de", password="pw-secret-123",
+            role=User.Role.ADMIN, organization=cls.org,
+        )
+        cls.sb_admin = User.objects.create_user(
+            email="psb@org.de", password="pw-secret-123",
+            role=User.Role.ADMIN, organization=cls.sb_org,
+        )
+        cls.employee = User.objects.create_user(
+            email="p-emp@org.de", password="pw-secret-123",
+            role=User.Role.EMPLOYEE, organization=cls.org,
+        )
+
+        def with_billable_shift(org):
+            customer = Customer.objects.create(
+                name="Kunde P", bundesland="HE", organization=org,
+            )
+            CustomerContract.objects.create(
+                customer=customer, valid_from=date(2025, 1, 1),
+                base_hourly_rate=Decimal("40"), vat_rate=Decimal("19"),
+            )
+            cls.shift = Shift.objects.create(
+                organization=org, employee=cls.employee, customer=customer,
+                shift_type=Shift.ShiftType.EARLY, date=date(2025, 1, 15),  # Mittwoch
+                start_time=time(8, 0), end_time=time(16, 0), break_minutes=0,
+                status=Shift.Status.APPROVED,
+            )
+            return customer
+
+        cls.customer = with_billable_shift(cls.org)
+        cls.sb_customer = with_billable_shift(cls.sb_org)
+        # Kunde ganz ohne Vertrag.
+        cls.no_contract_customer = Customer.objects.create(
+            name="Ohne Vertrag", bundesland="HE", organization=cls.org,
+        )
+
+    def setUp(self):
+        self.client.force_authenticate(self.admin)
+
+    def _preview(self, customer, start="2025-01-01", end="2025-01-31"):
+        return self.client.get("/api/invoices/preview/", {
+            "customer": customer.id, "period_start": start, "period_end": end,
+        })
+
+    def _dec(self, value):
+        return Decimal(str(value))
+
+    def test_preview_totals(self):
+        res = self._preview(self.customer)
+        self.assertEqual(res.status_code, status.HTTP_200_OK, res.data)
+        self.assertEqual(res.data["shift_count"], 1)
+        self.assertEqual(self._dec(res.data["paid_hours"]), Decimal("8.00"))
+        self.assertEqual(self._dec(res.data["subtotal_net"]), Decimal("320.00"))
+        self.assertEqual(self._dec(res.data["vat_amount"]), Decimal("60.80"))
+        self.assertEqual(self._dec(res.data["total_gross"]), Decimal("380.80"))
+        self.assertFalse(res.data["is_small_business"])
+
+    def test_preview_does_not_create_invoice_or_change_shift(self):
+        self._preview(self.customer)
+        self.assertEqual(Invoice.objects.count(), 0)
+        self.shift.refresh_from_db()
+        from apps.shifts.models import Shift
+
+        self.assertEqual(self.shift.status, Shift.Status.APPROVED)
+        self.assertIsNone(self.shift.invoice_id)
+
+    def test_preview_empty_period_returns_zero(self):
+        # Kein abrechenbarer Zeitraum -> keine Schichten, Summen 0 (kein 400).
+        res = self._preview(self.customer, start="2025-03-01", end="2025-03-31")
+        self.assertEqual(res.status_code, status.HTTP_200_OK, res.data)
+        self.assertEqual(res.data["shift_count"], 0)
+        self.assertEqual(self._dec(res.data["subtotal_net"]), Decimal("0"))
+        self.assertEqual(self._dec(res.data["total_gross"]), Decimal("0"))
+
+    def test_preview_without_contract_is_400(self):
+        res = self._preview(self.no_contract_customer)
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("Vertrag", str(res.data))
+
+    def test_preview_small_business_has_no_vat(self):
+        self.client.force_authenticate(self.sb_admin)
+        res = self._preview(self.sb_customer)
+        self.assertEqual(res.status_code, status.HTTP_200_OK, res.data)
+        self.assertTrue(res.data["is_small_business"])
+        self.assertEqual(self._dec(res.data["vat_amount"]), Decimal("0"))
+        self.assertEqual(
+            self._dec(res.data["total_gross"]), self._dec(res.data["subtotal_net"]),
+        )
+
+
 class ReportTests(APITestCase):
     """Auswertungen: Umsatz im Zeitraum, je Kunde, mandantengebunden."""
 

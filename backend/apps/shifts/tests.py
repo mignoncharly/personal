@@ -180,3 +180,71 @@ class ShiftApiTests(APITestCase):
         self.assertEqual(len(mail.outbox), 1)
         self.assertEqual(mail.outbox[0].to, ["emp@a.de"])
         self.assertIn("abgelehnt", mail.outbox[0].subject.lower())
+
+
+class ShiftOverlapTests(APITestCase):
+    """Schutz vor überlappenden Schichten je Mitarbeiter (auch über Mitternacht)."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.org = Organization.objects.create(name="Firma O", slug="firma-o")
+        cls.employee = User.objects.create_user(
+            email="o-emp@o.de", password="pw-secret-123",
+            role=User.Role.EMPLOYEE, organization=cls.org,
+        )
+        cls.employee2 = User.objects.create_user(
+            email="o-emp2@o.de", password="pw-secret-123",
+            role=User.Role.EMPLOYEE, organization=cls.org,
+        )
+        cls.customer = Customer.objects.create(
+            name="Haus O", bundesland="HE", organization=cls.org,
+        )
+
+    def setUp(self):
+        self.client.force_authenticate(self.employee)
+
+    def _post(self, **overrides):
+        payload = {
+            "customer": self.customer.id, "shift_type": "frueh",
+            "date": "2026-07-10", "start_time": "08:00", "end_time": "16:00",
+            "break_minutes": 0,
+        }
+        payload.update(overrides)
+        return self.client.post("/api/shifts/", payload)
+
+    def test_overlapping_shift_is_rejected(self):
+        self.assertEqual(self._post().status_code, status.HTTP_201_CREATED)
+        res = self._post(start_time="12:00", end_time="18:00")
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("überschneidet", str(res.data))
+
+    def test_back_to_back_shifts_are_allowed(self):
+        r1 = self._post(start_time="08:00", end_time="12:00")
+        self.assertEqual(r1.status_code, status.HTTP_201_CREATED, r1.data)
+        r2 = self._post(start_time="12:00", end_time="16:00")
+        self.assertEqual(r2.status_code, status.HTTP_201_CREATED, r2.data)
+
+    def test_overlap_across_midnight_is_rejected(self):
+        # Nachtschicht 22:00–06:00 (läuft in den Folgetag).
+        r1 = self._post(date="2026-07-10", start_time="22:00", end_time="06:00")
+        self.assertEqual(r1.status_code, status.HTTP_201_CREATED, r1.data)
+        # Folgetag 05:00–07:00 überschneidet das Nacht-Ende (06:00).
+        r2 = self._post(date="2026-07-11", start_time="05:00", end_time="07:00")
+        self.assertEqual(r2.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("überschneidet", str(r2.data))
+
+    def test_rejected_shift_does_not_block(self):
+        Shift.objects.create(
+            organization=self.org, employee=self.employee, customer=self.customer,
+            created_by=self.employee, shift_type="frueh", date=date(2026, 7, 10),
+            start_time=time(8, 0), end_time=time(16, 0), break_minutes=0,
+            status=Shift.Status.REJECTED,
+        )
+        res = self._post(start_time="08:00", end_time="16:00")
+        self.assertEqual(res.status_code, status.HTTP_201_CREATED, res.data)
+
+    def test_overlap_is_per_employee(self):
+        self.assertEqual(self._post().status_code, status.HTTP_201_CREATED)
+        # Ein anderer Mitarbeiter darf zur selben Zeit arbeiten.
+        self.client.force_authenticate(self.employee2)
+        self.assertEqual(self._post().status_code, status.HTTP_201_CREATED)
