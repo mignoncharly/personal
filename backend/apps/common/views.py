@@ -63,6 +63,7 @@ class SystemStatusView(APIView):
 
         employees = scope_queryset(
             EmployeeProfile.objects.select_related("user"), request.user,
+            field="user__organization",
         ).filter(is_active=True)
         travel_costs_enabled = scope_queryset(
             TravelCostRule.objects.select_related("contract__customer"), request.user,

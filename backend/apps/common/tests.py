@@ -50,3 +50,44 @@ class AuditLogApiTests(APITestCase):
         self.client.force_authenticate(self.admin_a)
         res = self.client.get("/api/audit-log/", {"action": "approve"})
         self.assertEqual(res.data["count"], 0)
+
+
+class SystemStatusApiTests(APITestCase):
+    """Systemstatus/Datenqualität: nur Admin, mandantengetrennt."""
+
+    @classmethod
+    def setUpTestData(cls):
+        from apps.customers.models import Customer
+        from apps.employees.models import EmployeeProfile
+
+        cls.org = Organization.objects.create(name="Firma S", slug="firma-s")
+        cls.admin = User.objects.create_user(
+            email="s-admin@s.de", password="pw-secret-123", role=User.Role.ADMIN,
+            organization=cls.org,
+        )
+        cls.employee = User.objects.create_user(
+            email="s-emp@s.de", password="pw-secret-123", role=User.Role.EMPLOYEE,
+            organization=cls.org,
+        )
+        # Mitarbeiterprofil ohne Adresse (exerziert das user__organization-Scoping).
+        EmployeeProfile.objects.create(
+            user=cls.employee, qualification="pflegehilfskraft",
+        )
+        # Kunde ohne Vertrag und ohne E-Mail -> zwei Datenqualitäts-Warnungen.
+        Customer.objects.create(name="Kunde S", bundesland="HE", organization=cls.org)
+
+    def test_admin_gets_status_with_data_quality(self):
+        self.client.force_authenticate(self.admin)
+        res = self.client.get("/api/system/status/")
+        self.assertEqual(res.status_code, status.HTTP_200_OK, res.data)
+        self.assertEqual(res.data["service"]["database"], "ok")
+        dq = res.data["data_quality"]
+        self.assertEqual(dq["customers_without_contract_count"], 1)
+        self.assertEqual(dq["customers_without_email_count"], 1)
+        # Schlüssel vorhanden – Mitarbeiter-Scoping über user__organization darf nicht crashen.
+        self.assertIn("employees_without_address_count", dq)
+
+    def test_employee_is_forbidden(self):
+        self.client.force_authenticate(self.employee)
+        res = self.client.get("/api/system/status/")
+        self.assertEqual(res.status_code, status.HTTP_403_FORBIDDEN)
