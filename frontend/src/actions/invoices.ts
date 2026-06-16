@@ -4,10 +4,17 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { apiFetch, ApiError } from "@/lib/api";
-import type { Invoice } from "@/lib/types";
+import type { Invoice, InvoicePreview } from "@/lib/types";
 
 export interface ActionState {
   error?: string;
+  preview?: InvoicePreview;
+  values?: {
+    customer?: string;
+    period_start?: string;
+    period_end?: string;
+    invoice_date?: string;
+  };
 }
 
 function str(value: FormDataEntryValue | null): string {
@@ -22,10 +29,34 @@ export async function generateInvoice(
   const periodStart = str(formData.get("period_start"));
   const periodEnd = str(formData.get("period_end"));
   const invoiceDate = str(formData.get("invoice_date"));
+  const intent = str(formData.get("intent"));
+  const values = {
+    customer,
+    period_start: periodStart,
+    period_end: periodEnd,
+    invoice_date: invoiceDate,
+  };
 
-  if (!customer) return { error: "Bitte einen Kunden wählen." };
+  if (!customer) return { error: "Bitte einen Kunden wählen.", values };
   if (!periodStart || !periodEnd)
-    return { error: "Bitte den Leistungszeitraum angeben." };
+    return { error: "Bitte den Leistungszeitraum angeben.", values };
+
+  if (intent === "preview") {
+    try {
+      const preview = await apiFetch<InvoicePreview>("/invoices/preview/", {
+        query: {
+          customer: Number(customer),
+          period_start: periodStart,
+          period_end: periodEnd,
+          ...(invoiceDate ? { invoice_date: invoiceDate } : {}),
+        },
+      });
+      return { preview, values };
+    } catch (err) {
+      if (err instanceof ApiError) return { error: err.toUserMessage(), values };
+      return { error: "Vorschau konnte nicht berechnet werden.", values };
+    }
+  }
 
   let invoice: Invoice;
   try {
@@ -39,8 +70,8 @@ export async function generateInvoice(
       },
     });
   } catch (err) {
-    if (err instanceof ApiError) return { error: err.toUserMessage() };
-    return { error: "Rechnung konnte nicht erstellt werden." };
+    if (err instanceof ApiError) return { error: err.toUserMessage(), values };
+    return { error: "Rechnung konnte nicht erstellt werden.", values };
   }
   revalidatePath("/rechnungen");
   redirect(`/rechnungen/${invoice.id}`);
@@ -102,6 +133,7 @@ export async function markInvoiceUnpaid(formData: FormData) {
 
 export async function remindInvoice(formData: FormData) {
   const id = str(formData.get("id"));
+  const next = str(formData.get("next"));
   if (!id) return;
   try {
     await apiFetch(`/invoices/${id}/remind/`, { method: "POST" });
@@ -109,7 +141,10 @@ export async function remindInvoice(formData: FormData) {
     const msg = err instanceof ApiError ? err.toUserMessage() : "Zahlungserinnerung konnte nicht versendet werden.";
     redirect(`/rechnungen/${id}?error=${encodeURIComponent(msg)}`);
   }
+  revalidatePath("/rechnungen");
+  revalidatePath("/dashboard");
   revalidatePath(`/rechnungen/${id}`);
+  if (next.startsWith("/rechnungen")) redirect(next);
   redirect(`/rechnungen/${id}?reminded=1`);
 }
 

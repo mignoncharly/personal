@@ -40,24 +40,9 @@ export default async function ShiftsPage(props: {
   const page = Number(typeof params.page === "string" ? params.page : "1") || 1;
 
   const data = await apiFetch<Paginated<Shift>>("/shifts/", {
-    query: { status: status || undefined, page },
+    query: { status: status || undefined, q: q || undefined, page },
   });
   const shifts = data.results;
-  const search = q.toLocaleLowerCase("de-DE");
-  const visibleShifts = search
-    ? shifts.filter((shift) =>
-        [
-          shift.date,
-          shift.customer_name,
-          shift.employee_name,
-          shift.status_display,
-          shift.shift_type_display,
-        ]
-          .join(" ")
-          .toLocaleLowerCase("de-DE")
-          .includes(search),
-      )
-    : shifts;
   const totalPages = Math.max(1, Math.ceil(data.count / 50));
   const makeHref = (p: number) =>
     `/schichten?${new URLSearchParams({
@@ -79,7 +64,7 @@ export default async function ShiftsPage(props: {
           <>
             {user.is_admin && (
               <ButtonLink
-                href={`/schichten/export${status ? `?status=${status}` : ""}`}
+                href={`/schichten/export?${new URLSearchParams({ ...(status ? { status } : {}), ...(q ? { q } : {}) }).toString()}`}
                 variant="secondary"
                 download
               >
@@ -142,7 +127,7 @@ export default async function ShiftsPage(props: {
         </div>
       </Card>
 
-      {visibleShifts.length === 0 ? (
+      {shifts.length === 0 ? (
         <EmptyState>
           Keine Schichten gefunden. {" "}
           <Link href="/schichten/neu" className="font-semibold text-indigo-600 hover:underline">
@@ -165,7 +150,7 @@ export default async function ShiftsPage(props: {
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-200">
-            {visibleShifts.map((shift) => (
+            {shifts.map((shift) => (
               <tr key={shift.id} className="hover:bg-slate-50">
                 <Td className="font-semibold text-slate-950">{formatDate(shift.date)}</Td>
                 <Td>{shift.customer_name}</Td>

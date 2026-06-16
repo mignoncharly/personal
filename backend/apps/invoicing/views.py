@@ -1,5 +1,7 @@
+from datetime import date as date_cls
 from decimal import Decimal
 
+from django.db.models import Q
 from django.http import HttpResponse
 from django.utils import timezone
 from rest_framework import status, viewsets
@@ -18,7 +20,7 @@ from .emails import send_invoice_email, send_reminder_email
 from .models import Invoice
 from .pdf import build_and_store_pdf
 from .serializers import InvoiceGenerateSerializer, InvoiceSerializer
-from .services import generate_invoice, release_invoice_shifts
+from .services import collect_invoice_preview, generate_invoice, release_invoice_shifts
 
 
 class InvoiceViewSet(TenantScopedViewSet, viewsets.ModelViewSet):
@@ -35,7 +37,25 @@ class InvoiceViewSet(TenantScopedViewSet, viewsets.ModelViewSet):
         if customer := params.get("customer"):
             qs = qs.filter(customer_id=customer)
         if status_param := params.get("status"):
-            qs = qs.filter(status=status_param)
+            if status_param == "open":
+                qs = qs.filter(status__in=(Invoice.Status.FINALIZED, Invoice.Status.SENT))
+            elif status_param == "overdue":
+                today = date_cls.today()
+                overdue_ids = [
+                    inv.id for inv in qs.filter(
+                        status__in=(Invoice.Status.FINALIZED, Invoice.Status.SENT),
+                        invoice_date__lt=today,
+                    )
+                    if inv.is_overdue
+                ]
+                qs = qs.filter(id__in=overdue_ids)
+            elif status_param in Invoice.Status.values:
+                qs = qs.filter(status=status_param)
+        if q := params.get("q"):
+            q = q.strip()
+            if q:
+                query = Q(number__icontains=q) | Q(customer__name__icontains=q)
+                qs = qs.filter(query)
         return qs
 
     def create(self, request, *args, **kwargs):
@@ -55,6 +75,24 @@ class InvoiceViewSet(TenantScopedViewSet, viewsets.ModelViewSet):
         # Schichten wieder freigeben, damit sie erneut abgerechnet werden können.
         release_invoice_shifts(instance)
         instance.delete()
+
+
+    @action(detail=False, methods=["get"])
+    def preview(self, request):
+        """Vorschau der abrechenbaren Schichten und Summen ohne Rechnung anzulegen."""
+        serializer = InvoiceGenerateSerializer(data=request.query_params)
+        serializer.is_valid(raise_exception=True)
+        customer = serializer.validated_data["customer"]
+        assert_org_match(request.user, customer.organization_id)
+        try:
+            preview, _contract, _shifts, _acc = collect_invoice_preview(
+                customer=customer,
+                period_start=serializer.validated_data["period_start"],
+                period_end=serializer.validated_data["period_end"],
+            )
+        except ValueError as exc:
+            raise ValidationError(str(exc))
+        return Response(preview, status=status.HTTP_200_OK)
 
     @action(detail=False, methods=["post"])
     def generate(self, request):
@@ -207,8 +245,6 @@ class InvoiceViewSet(TenantScopedViewSet, viewsets.ModelViewSet):
     @action(detail=False, methods=["get"])
     def summary(self, request):
         """Kennzahlen für das Dashboard: offene und überfällige Forderungen."""
-        from datetime import date as date_cls
-
         open_qs = self.get_queryset().filter(
             status__in=(Invoice.Status.FINALIZED, Invoice.Status.SENT)
         )

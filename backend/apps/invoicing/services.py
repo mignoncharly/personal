@@ -40,11 +40,8 @@ def next_sequence(organization) -> int:
     return locked.invoice_sequence_counter
 
 
-@transaction.atomic
-def generate_invoice(*, customer, period_start, period_end, invoice_date, user):
-    """Erzeugt eine Rechnung für alle freigegebenen, nicht abgerechneten Schichten
-    eines Kunden im angegebenen Zeitraum.
-    """
+def collect_invoice_preview(*, customer, period_start, period_end):
+    """Berechnet eine Vorschau für die abrechenbaren Schichten ohne Rechnung anzulegen."""
     contract = customer.active_contract
     if contract is None:
         raise ValueError("Kein aktiver Vertrag für diesen Kunden hinterlegt.")
@@ -58,12 +55,7 @@ def generate_invoice(*, customer, period_start, period_end, invoice_date, user):
             date__lte=period_end,
         )
     )
-    if not shifts:
-        raise ValueError(
-            "Keine abrechenbaren (freigegebenen, nicht abgerechneten) Schichten im Zeitraum."
-        )
 
-    rate = contract.base_hourly_rate
     keys = [
         "base_h", "night_h", "sat_h", "sun_h", "hol_h",
         "base_a", "night_a", "sat_a", "sun_a", "hol_a", "special_a", "travel_a",
@@ -85,14 +77,51 @@ def generate_invoice(*, customer, period_start, period_end, invoice_date, user):
         acc["special_a"] += calc.special_amount
         acc["travel_a"] += calc.travel_amount
 
+    org = customer.organization
+    is_small_business = org.is_small_business
+    vat_rate = Decimal("0") if is_small_business else contract.vat_rate
+    subtotal = _money(sum((acc[key] for key in (
+        "base_a", "night_a", "sat_a", "sun_a", "hol_a", "special_a", "travel_a",
+    )), Decimal("0")))
+    vat = _money(subtotal * vat_rate / HUNDRED)
+    return {
+        "customer": customer.id,
+        "customer_name": customer.name,
+        "period_start": period_start,
+        "period_end": period_end,
+        "shift_count": len(shifts),
+        "paid_hours": _money(acc["base_h"]),
+        "subtotal_net": subtotal,
+        "vat_rate": vat_rate,
+        "vat_amount": vat,
+        "total_gross": _money(subtotal + vat),
+        "is_small_business": is_small_business,
+    }, contract, shifts, acc
+
+
+@transaction.atomic
+def generate_invoice(*, customer, period_start, period_end, invoice_date, user):
+    """Erzeugt eine Rechnung für alle freigegebenen, nicht abgerechneten Schichten
+    eines Kunden im angegebenen Zeitraum.
+    """
+    preview, contract, shifts, acc = collect_invoice_preview(
+        customer=customer, period_start=period_start, period_end=period_end,
+    )
+    if not shifts:
+        raise ValueError(
+            "Keine abrechenbaren (freigegebenen, nicht abgerechneten) Schichten im Zeitraum."
+        )
+
+    rate = contract.base_hourly_rate
+
     def factor(pct: Decimal) -> Decimal:
         return _money(rate * (Decimal(pct) / HUNDRED))
 
     org = customer.organization
     sequence = next_sequence(org)
     # Kleinunternehmer (§ 19 UStG): keine USt ausweisen, unabhängig vom Vertragssatz.
-    is_small_business = org.is_small_business
-    vat_rate = Decimal("0") if is_small_business else contract.vat_rate
+    is_small_business = preview["is_small_business"]
+    vat_rate = preview["vat_rate"]
     invoice = Invoice.objects.create(
         organization=org,
         customer=customer,
@@ -133,11 +162,9 @@ def generate_invoice(*, customer, period_start, period_end, invoice_date, user):
         ))
     InvoiceLine.objects.bulk_create(lines)
 
-    subtotal = sum((line.amount for line in lines), Decimal("0"))
-    vat = _money(subtotal * vat_rate / HUNDRED)
-    invoice.subtotal_net = _money(subtotal)
-    invoice.vat_amount = vat
-    invoice.total_gross = _money(subtotal + vat)
+    invoice.subtotal_net = preview["subtotal_net"]
+    invoice.vat_amount = preview["vat_amount"]
+    invoice.total_gross = preview["total_gross"]
     invoice.save(update_fields=["subtotal_net", "vat_amount", "total_gross"])
 
     for s in shifts:

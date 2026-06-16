@@ -1,0 +1,9 @@
+# Allow the mignon deploy user to restart/check Mouvin Personal services without a password.
+# Install as root with:
+#   cp deploy/sudoers-personal-deploy /etc/sudoers.d/personal-deploy
+#   chmod 440 /etc/sudoers.d/personal-deploy
+#   visudo -cf /etc/sudoers.d/personal-deploy
+
+mignon ALL=(root) NOPASSWD: /usr/bin/systemctl restart personal-backend.service personal-frontend.service
+mignon ALL=(root) NOPASSWD: /usr/bin/systemctl status personal-backend.service
+mignon ALL=(root) NOPASSWD: /usr/bin/systemctl status personal-frontend.service

@@ -1,6 +1,9 @@
+from datetime import datetime, timedelta
 from decimal import Decimal
 
+from django.db.models import Q
 from django.utils import timezone
+from django.utils.dateparse import parse_date
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied, ValidationError
@@ -18,6 +21,39 @@ from .emails import send_shift_approved_email, send_shift_rejected_email
 from .models import Shift
 from .serializers import ShiftSerializer
 from .services import recalculate_shift
+
+
+def _shift_interval(date, start_time, end_time):
+    start = datetime.combine(date, start_time)
+    end = datetime.combine(date, end_time)
+    if end <= start:
+        end += timedelta(days=1)
+    return start, end
+
+
+def _ensure_no_overlap(*, employee, date, start_time, end_time, exclude_id=None):
+    """Verhindert überlappende Schichten pro Mitarbeiter, auch über Mitternacht."""
+    start, end = _shift_interval(date, start_time, end_time)
+    candidates = Shift.objects.filter(
+        employee=employee,
+        date__gte=date - timedelta(days=1),
+        date__lte=date + timedelta(days=1),
+    ).exclude(status=Shift.Status.REJECTED)
+    if exclude_id:
+        candidates = candidates.exclude(pk=exclude_id)
+
+    for existing in candidates:
+        existing_start, existing_end = _shift_interval(
+            existing.date, existing.start_time, existing.end_time,
+        )
+        if start < existing_end and end > existing_start:
+            raise ValidationError({
+                "date": (
+                    "Diese Schicht überschneidet sich mit einer vorhandenen Schicht "
+                    f"am {existing.date:%d.%m.%Y} von "
+                    f"{existing.start_time:%H:%M} bis {existing.end_time:%H:%M}."
+                )
+            })
 
 # Zustände, in denen eine Pflegekraft ihre Schicht noch ändern darf.
 EMPLOYEE_EDITABLE = {Shift.Status.DRAFT, Shift.Status.REJECTED}
@@ -52,6 +88,18 @@ class ShiftViewSet(viewsets.ModelViewSet):
             qs = qs.filter(date__gte=date_from)
         if date_to := params.get("date_to"):
             qs = qs.filter(date__lte=date_to)
+        if q := params.get("q"):
+            q = q.strip()
+            if q:
+                query = (
+                    Q(customer__name__icontains=q)
+                    | Q(employee__first_name__icontains=q)
+                    | Q(employee__last_name__icontains=q)
+                    | Q(employee__email__icontains=q)
+                )
+                if parsed := parse_date(q):
+                    query |= Q(date=parsed)
+                qs = qs.filter(query)
         return qs
 
     def perform_create(self, serializer):
@@ -66,6 +114,12 @@ class ShiftViewSet(viewsets.ModelViewSet):
         if customer is not None:
             assert_org_match(user, customer.organization_id)
         assert_org_match(user, employee.organization_id)
+        _ensure_no_overlap(
+            employee=employee,
+            date=serializer.validated_data["date"],
+            start_time=serializer.validated_data["start_time"],
+            end_time=serializer.validated_data["end_time"],
+        )
         shift = serializer.save(
             employee=employee, created_by=user, status=Shift.Status.DRAFT,
             organization=org or employee.organization,
@@ -86,6 +140,16 @@ class ShiftViewSet(viewsets.ModelViewSet):
 
     def perform_update(self, serializer):
         self._guard_editable(serializer.instance)
+        instance = serializer.instance
+        data = serializer.validated_data
+        employee = data.get("employee") or instance.employee
+        _ensure_no_overlap(
+            employee=employee,
+            date=data.get("date", instance.date),
+            start_time=data.get("start_time", instance.start_time),
+            end_time=data.get("end_time", instance.end_time),
+            exclude_id=instance.id,
+        )
         shift = serializer.save()
         summary = "Korrigiert durch Admin" if is_admin_user(self.request.user) else "Bearbeitet"
         log_action(self.request.user, AuditLog.Action.UPDATE, shift, summary=summary)

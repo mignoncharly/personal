@@ -256,6 +256,49 @@ export interface ShiftSummary {
   status_counts: Partial<Record<ShiftStatus, number>>;
 }
 
+
+export interface InvoicePreview {
+  customer: number;
+  customer_name: string;
+  period_start: string;
+  period_end: string;
+  shift_count: number;
+  paid_hours: string;
+  subtotal_net: string;
+  vat_rate: string;
+  vat_amount: string;
+  total_gross: string;
+  is_small_business: boolean;
+}
+
+export interface SystemStatusItem {
+  id: number;
+  name?: string;
+  user_id?: number;
+  date?: string;
+  customer?: string;
+  employee?: string;
+}
+
+export interface SystemStatus {
+  service: {
+    status: "ok" | "degraded";
+    database: "ok" | "error";
+  };
+  data_quality: {
+    customers_without_contract: SystemStatusItem[];
+    customers_without_contract_count: number;
+    customers_without_email: SystemStatusItem[];
+    customers_without_email_count: number;
+    travel_costs_enabled: boolean;
+    employees_without_address: SystemStatusItem[];
+    employees_without_address_count: number;
+    approved_not_invoiced: SystemStatusItem[];
+    approved_not_invoiced_count: number;
+    overdue_invoices_count: number;
+  };
+}
+
 export interface InvoiceSummary {
   open_count: number;
   open_total: string;

@@ -18,6 +18,7 @@ import type {
   Paginated,
   Shift,
   ShiftSummary,
+  SystemStatus,
 } from "@/lib/types";
 
 export const metadata: Metadata = { title: "Dashboard" };
@@ -45,16 +46,24 @@ export default async function DashboardPage() {
   const user = await requireUser();
 
   if (user.is_admin) {
-    const [summary, reviewPage, invoices, recentInvoicePage] = await Promise.all([
+    const [summary, reviewPage, invoices, recentInvoicePage, systemStatus] = await Promise.all([
       apiFetch<ShiftSummary>("/shifts/summary/"),
       apiFetch<Paginated<Shift>>("/shifts/", {
         query: { status: "submitted", page_size: 8 },
       }),
       apiFetch<InvoiceSummary>("/invoices/summary/"),
       apiFetch<Paginated<Invoice>>("/invoices/", { query: { page_size: 5 } }),
+      apiFetch<SystemStatus>("/system/status/"),
     ]);
     const review = reviewPage.results;
     const recentInvoices = recentInvoicePage.results;
+    const quality = systemStatus.data_quality;
+    const warningCount =
+      quality.customers_without_contract_count +
+      quality.customers_without_email_count +
+      quality.employees_without_address_count +
+      quality.approved_not_invoiced_count +
+      quality.overdue_invoices_count;
 
     return (
       <>
@@ -63,6 +72,25 @@ export default async function DashboardPage() {
           subtitle="Übersicht über Schichten, Prüfungen und offene Forderungen."
           actions={<ButtonLink href="/rechnungen/neu">Rechnung erstellen</ButtonLink>}
         />
+
+
+        {warningCount > 0 && (
+          <Card className="mb-6 border-amber-200 bg-amber-50 shadow-none">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <div className="text-sm font-semibold text-amber-900">
+                  {warningCount} Hinweis(e) zu Stammdaten und Abrechnung
+                </div>
+                <div className="mt-1 text-sm text-amber-800">
+                  Prüfen Sie fehlende Verträge, Rechnungs-E-Mails, Adressen und freigegebene Schichten ohne Rechnung.
+                </div>
+              </div>
+              <Link href="/systemstatus" className="text-sm font-semibold text-amber-900 hover:underline">
+                Systemstatus öffnen
+              </Link>
+            </div>
+          </Card>
+        )}
 
         <section>
           <SectionTitle title="Übersicht" />

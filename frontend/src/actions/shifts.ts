@@ -52,6 +52,9 @@ export async function createShift(
       method: "POST",
       body: buildPayload(formData),
     });
+    if (str(formData.get("intent")) === "submit") {
+      await apiFetch(`/shifts/${created.id}/submit/`, { method: "POST" });
+    }
   } catch (err) {
     if (err instanceof ApiError) return { error: err.toUserMessage() };
     return { error: "Schicht konnte nicht gespeichert werden." };
@@ -71,6 +74,9 @@ export async function updateShift(
       method: "PATCH",
       body: buildPayload(formData),
     });
+    if (str(formData.get("intent")) === "submit") {
+      await apiFetch(`/shifts/${id}/submit/`, { method: "POST" });
+    }
   } catch (err) {
     if (err instanceof ApiError) return { error: err.toUserMessage() };
     return { error: "Änderungen konnten nicht gespeichert werden." };

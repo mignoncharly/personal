@@ -20,6 +20,7 @@ const NAV_ITEMS: NavItem[] = [
   { href: "/mitarbeiter", label: "Mitarbeiter", adminOnly: true },
   { href: "/rechnungen", label: "Rechnungen", adminOnly: true },
   { href: "/auswertungen", label: "Auswertungen", adminOnly: true },
+  { href: "/systemstatus", label: "Systemstatus", adminOnly: true },
   { href: "/protokoll", label: "Protokoll", adminOnly: true },
   { href: "/einstellungen", label: "Organisation", adminOnly: true },
 ];

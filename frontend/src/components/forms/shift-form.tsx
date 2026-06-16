@@ -5,7 +5,7 @@ import Link from "next/link";
 
 import type { ActionState } from "@/actions/shifts";
 import { SubmitButton } from "@/components/submit-button";
-import { Alert, Field, Input, Select, Textarea } from "@/components/ui";
+import { Alert, Button, Field, Input, Select, Textarea } from "@/components/ui";
 import type { CustomerChoice, Employee, Shift } from "@/lib/types";
 
 const SHIFT_TYPES = [
@@ -128,11 +128,14 @@ export function ShiftForm({
         <Textarea id="note" name="note" rows={3} defaultValue={shift?.note ?? ""} />
       </Field>
 
-      <div className="flex gap-3">
+      <div className="flex flex-wrap gap-3">
         <SubmitButton pendingLabel="Speichern …">{submitLabel}</SubmitButton>
+        <Button type="submit" name="intent" value="submit" variant="secondary">
+          Speichern & einreichen
+        </Button>
         <Link
           href={cancelHref}
-          className="inline-flex items-center rounded-md border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800"
+          className="inline-flex items-center rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800"
         >
           Abbrechen
         </Link>

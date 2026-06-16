@@ -62,3 +62,31 @@ npm run dev
 10. Deployment (IONOS VPS)
 
 Details siehe [`docs/implementierungsplan.md`](docs/implementierungsplan.md).
+
+
+## Produktion: kleine Betriebsnotizen
+
+### Systemd-Restart
+
+Die produktiven Dienste laufen als `personal-backend.service` und `personal-frontend.service`.
+Für Deploys sollte der Benutzer `mignon` die begrenzten sudo-Rechte aus
+`deploy/sudoers-personal-deploy` erhalten. Danach kann neu gestartet werden mit:
+
+```bash
+./scripts/restart-prod.sh
+```
+
+### www-Weiterleitung
+
+Die kanonische URL ist `https://personal.meinpflegeweg.com`. `www.personal.meinpflegeweg.com`
+soll per DNS auf denselben Server zeigen und dann auf die kanonische Domain weiterleiten.
+Nach DNS-Anlage Zertifikat erweitern und nginx neu laden:
+
+```bash
+sudo certbot --nginx -d personal.meinpflegeweg.com -d www.personal.meinpflegeweg.com
+sudo nginx -t
+sudo systemctl reload nginx
+```
+
+Die nginx-Vorlagen liegen unter `deploy/nginx-personal.meinpflegeweg.com.conf` und
+`nginx/personal.meinpflegeweg.com.conf`.

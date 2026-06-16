@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 
-import { markInvoicePaid, sendInvoice } from "@/actions/invoices";
+import { markInvoicePaid, remindInvoice, sendInvoice } from "@/actions/invoices";
 import { SubmitButton } from "@/components/submit-button";
 import {
   Badge,
@@ -32,6 +32,16 @@ function InvoiceDashboardStatus({ invoice }: { invoice: Invoice }) {
   return <Badge color="blue">Offen</Badge>;
 }
 
+
+const FILTERS = [
+  { value: "", label: "Alle" },
+  { value: "draft", label: "Entwurf" },
+  { value: "open", label: "Offen" },
+  { value: "overdue", label: "Überfällig" },
+  { value: "paid", label: "Bezahlt" },
+  { value: "cancelled", label: "Storniert" },
+];
+
 function sumInvoices(invoices: Invoice[], key: "total_gross" | "subtotal_net") {
   return invoices.reduce((sum, invoice) => sum + Number(invoice[key] || 0), 0);
 }
@@ -42,29 +52,15 @@ export default async function InvoicesPage(props: {
   await requireAdmin();
   const params = await props.searchParams;
   const q = typeof params.q === "string" ? params.q.trim() : "";
+  const status = typeof params.status === "string" ? params.status : "";
   const page = Number(typeof params.page === "string" ? params.page : "1") || 1;
   const [data, summary, paidPage, totalsPage] = await Promise.all([
-    apiFetch<Paginated<Invoice>>("/invoices/", { query: { page } }),
+    apiFetch<Paginated<Invoice>>("/invoices/", { query: { page, q: q || undefined, status: status || undefined } }),
     apiFetch<InvoiceSummary>("/invoices/summary/"),
     apiFetch<Paginated<Invoice>>("/invoices/", { query: { status: "paid", page_size: 200 } }),
     apiFetch<Paginated<Invoice>>("/invoices/", { query: { page_size: 200 } }),
   ]);
   const invoices = data.results;
-  const search = q.toLocaleLowerCase("de-DE");
-  const visibleInvoices = search
-    ? invoices.filter((invoice) =>
-        [
-          invoice.number,
-          invoice.customer_name,
-          invoice.invoice_date,
-          invoice.due_date,
-          invoice.status_display,
-        ]
-          .join(" ")
-          .toLocaleLowerCase("de-DE")
-          .includes(search),
-      )
-    : invoices;
   const totalPages = Math.max(1, Math.ceil(data.count / 50));
   const paidTotal = sumInvoices(paidPage.results, "total_gross");
   const netTotal = sumInvoices(totalsPage.results, "subtotal_net");
@@ -77,7 +73,14 @@ export default async function InvoicesPage(props: {
         actions={
           <>
             {invoices.length > 0 && (
-              <ButtonLink href="/rechnungen/export" variant="secondary" download>
+              <ButtonLink
+                href={`/rechnungen/export?${new URLSearchParams({
+                  ...(status ? { status } : {}),
+                  ...(q ? { q } : {}),
+                }).toString()}`}
+                variant="secondary"
+                download
+              >
                 Exportieren
               </ButtonLink>
             )}
@@ -115,6 +118,7 @@ export default async function InvoicesPage(props: {
 
       <Card className="my-5">
         <form className="grid gap-3 lg:grid-cols-[1fr_auto]" action="/rechnungen">
+          {status && <input type="hidden" name="status" value={status} />}
           <div>
             <label htmlFor="invoice-search" className="text-sm font-semibold text-slate-700">
               Suche
@@ -129,12 +133,38 @@ export default async function InvoicesPage(props: {
           </div>
           <div className="flex items-end gap-2">
             <Button type="submit" variant="secondary">Suchen</Button>
-            {q && <ButtonLink href="/rechnungen" variant="ghost">Zurücksetzen</ButtonLink>}
+            {(q || status) && <ButtonLink href="/rechnungen" variant="ghost">Zurücksetzen</ButtonLink>}
           </div>
         </form>
+        <div className="mt-4 flex flex-wrap gap-2 border-t border-slate-100 pt-4">
+          {FILTERS.map((filter) => {
+            const active = status === filter.value;
+            const href = `/rechnungen${
+              filter.value || q
+                ? `?${new URLSearchParams({
+                    ...(filter.value ? { status: filter.value } : {}),
+                    ...(q ? { q } : {}),
+                  }).toString()}`
+                : ""
+            }`;
+            return (
+              <Link
+                key={filter.value || "all"}
+                href={href}
+                className={`rounded-full px-3 py-1.5 text-sm font-semibold transition-colors ring-1 ring-inset ${
+                  active
+                    ? "bg-indigo-600 text-white ring-indigo-600"
+                    : "bg-white text-slate-600 ring-slate-200 hover:bg-slate-50"
+                }`}
+              >
+                {filter.label}
+              </Link>
+            );
+          })}
+        </div>
       </Card>
 
-      {visibleInvoices.length === 0 ? (
+      {invoices.length === 0 ? (
         <EmptyState>
           Noch keine Rechnungen erstellt. {" "}
           <Link href="/rechnungen/neu" className="font-semibold text-indigo-600 hover:underline">
@@ -155,7 +185,7 @@ export default async function InvoicesPage(props: {
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-200">
-            {visibleInvoices.map((inv) => {
+            {invoices.map((inv) => {
               const isOpen = inv.status === "finalized" || inv.status === "sent";
               return (
                 <tr key={inv.id} className="hover:bg-slate-50">
@@ -178,6 +208,24 @@ export default async function InvoicesPage(props: {
                       <ButtonLink href={`/rechnungen/${inv.id}`} variant="ghost" size="sm">
                         Details
                       </ButtonLink>
+
+                      {inv.is_overdue && (
+                        <form action={remindInvoice} className="inline">
+                          <input type="hidden" name="id" value={inv.id} />
+                          <input
+                            type="hidden"
+                            name="next"
+                            value={`/rechnungen?${new URLSearchParams({
+                              ...(status ? { status } : {}),
+                              ...(q ? { q } : {}),
+                              page: String(page),
+                            }).toString()}`}
+                          />
+                          <SubmitButton variant="secondary" size="sm" pendingLabel="Sendet ...">
+                            Mahnung senden
+                          </SubmitButton>
+                        </form>
+                      )}
                       {isOpen && (
                         <form action={sendInvoice} className="inline">
                           <input type="hidden" name="id" value={inv.id} />
@@ -209,6 +257,7 @@ export default async function InvoicesPage(props: {
         count={data.count}
         makeHref={(p) =>
           `/rechnungen?${new URLSearchParams({
+            ...(status ? { status } : {}),
             ...(q ? { q } : {}),
             page: String(p),
           }).toString()}`
