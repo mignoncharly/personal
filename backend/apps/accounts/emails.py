@@ -65,7 +65,7 @@ def send_password_reset_email(user, request=None) -> None:
     tokens = make_token(user)
     link = _reset_link(frontend_origin(request), tokens)
     _send(
-        subject="Passwort zurücksetzen – Mouvin Personal",
+        subject="Passwort zurücksetzen – Schichtwerk",
         message=(
             "Sie haben das Zurücksetzen Ihres Passworts angefordert.\n\n"
             f"UID: {tokens['uid']}\nToken: {tokens['token']}\n\n"
@@ -83,7 +83,7 @@ def send_invite_email(user, request=None) -> None:
     Lädt den Nutzer ein, über den Passwort-Reset-Link sein erstes Passwort zu
     setzen und sich anzumelden.
     """
-    org_name = user.organization.name if user.organization_id else "Mouvin Personal"
+    org_name = user.organization.name if user.organization_id else "Schichtwerk"
     greeting_name = user.get_full_name() or user.email
     tokens = make_token(user)
     link = _reset_link(frontend_origin(request), tokens)
@@ -91,7 +91,7 @@ def send_invite_email(user, request=None) -> None:
         subject=f"Willkommen bei {org_name} – Zugang aktivieren",
         message=(
             f"Hallo {greeting_name},\n\n"
-            f"für Sie wurde ein Zugang bei {org_name} (Mouvin Personal) angelegt.\n"
+            f"für Sie wurde ein Zugang bei {org_name} (Schichtwerk) angelegt.\n"
             "Bitte legen Sie über den folgenden Link Ihr Passwort fest, um sich "
             "anzumelden:\n\n"
             f"{link}\n\n"

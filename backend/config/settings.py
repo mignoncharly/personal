@@ -1,5 +1,5 @@
 """
-Django settings for the Mouvin Personal Schicht- & Rechnungssystem.
+Django settings for Schichtwerk (Schicht- & Rechnungssystem).
 
 Configuration is read from environment variables (.env) via django-environ.
 """

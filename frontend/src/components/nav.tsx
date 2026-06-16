@@ -69,7 +69,7 @@ export function Nav({
       <div className="flex items-center justify-between gap-3 px-1">
         <Link href="/dashboard" className="min-w-0" onClick={() => setOpen(false)}>
           <div className="text-xs font-semibold uppercase tracking-[0.18em] text-indigo-300">
-            Mouvin Personal
+            Schichtwerk
           </div>
           <div className="mt-1 truncate text-lg font-semibold tracking-tight text-white">
             {organizationName || "Organisation"}
@@ -134,7 +134,7 @@ export function Nav({
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">
             <div className="text-xs font-semibold uppercase tracking-[0.18em] text-indigo-600">
-              Mouvin Personal
+              Schichtwerk
             </div>
             <div className="truncate text-sm font-semibold text-slate-950">
               {organizationName || "Organisation"}

@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import { LoginForm } from "@/components/forms/login-form";
 
 export const metadata: Metadata = {
-  title: "Anmelden – Mouvin Personal",
+  title: "Anmelden – Schichtwerk",
 };
 
 export default async function LoginPage(props: {
@@ -19,7 +19,7 @@ export default async function LoginPage(props: {
       <div className="w-full max-w-sm">
         <div className="mb-8 text-center">
           <h1 className="text-xl font-bold text-slate-900 dark:text-white">
-            Mouvin Personal
+            Schichtwerk
           </h1>
           <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
             Schicht- &amp; Rechnungssystem

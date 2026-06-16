@@ -1,4 +1,4 @@
-"""URL configuration for the Mouvin Personal backend."""
+"""URL configuration for the Schichtwerk backend."""
 
 from django.conf import settings
 from django.conf.urls.static import static

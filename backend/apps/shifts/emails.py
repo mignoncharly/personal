@@ -32,7 +32,7 @@ def _notify(shift, *, subject, message, kind):
 
 
 def send_shift_approved_email(shift):
-    org_name = shift.organization.name if shift.organization_id else "Mouvin Personal"
+    org_name = shift.organization.name if shift.organization_id else "Schichtwerk"
     _notify(
         shift,
         subject=f"Schicht freigegeben – {shift.date:%d.%m.%Y}",
@@ -47,7 +47,7 @@ def send_shift_approved_email(shift):
 
 
 def send_shift_rejected_email(shift, reason: str):
-    org_name = shift.organization.name if shift.organization_id else "Mouvin Personal"
+    org_name = shift.organization.name if shift.organization_id else "Schichtwerk"
     _notify(
         shift,
         subject=f"Schicht abgelehnt – {shift.date:%d.%m.%Y}",

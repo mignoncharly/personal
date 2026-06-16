@@ -40,7 +40,7 @@ def send_reminder_email(invoice) -> str:
     pdf_bytes = build_and_store_pdf(invoice)
 
     org = invoice.organization
-    org_name = org.name if org else "Mouvin Personal"
+    org_name = org.name if org else "Schichtwerk"
     body = (
         "Sehr geehrte Damen und Herren,\n\n"
         f"unsere Rechnung {invoice.number} vom {invoice.invoice_date:%d.%m.%Y} über "
@@ -81,7 +81,7 @@ def send_invoice_email(invoice) -> str:
     pdf_bytes = build_and_store_pdf(invoice)
 
     org = invoice.organization
-    org_name = org.name if org else "Mouvin Personal"
+    org_name = org.name if org else "Schichtwerk"
     bcc = [org.email] if org and org.email else []
 
     period = f"{invoice.period_start:%d.%m.%Y} – {invoice.period_end:%d.%m.%Y}"

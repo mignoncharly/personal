@@ -6,7 +6,7 @@ import {
 } from "@/components/forms/password-reset-form";
 
 export const metadata: Metadata = {
-  title: "Passwort zurücksetzen – Mouvin Personal",
+  title: "Passwort zurücksetzen – Schichtwerk",
 };
 
 export default async function PasswordResetPage(props: {
@@ -25,7 +25,7 @@ export default async function PasswordResetPage(props: {
             Passwort zurücksetzen
           </h1>
           <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-            Mouvin Personal
+            Schichtwerk
           </p>
         </div>
         <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-slate-800">

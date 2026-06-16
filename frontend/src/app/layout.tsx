@@ -9,10 +9,10 @@ const geistSans = Geist({
 
 export const metadata: Metadata = {
   title: {
-    default: "Mouvin Personal",
-    template: "%s · Mouvin Personal",
+    default: "Schichtwerk",
+    template: "%s · Schichtwerk",
   },
-  description: "Schicht- & Rechnungssystem der Mouvin Personal Dienstleistungs GmbH",
+  description: "Schichtwerk – Schicht- & Rechnungssystem für Personaldienstleister",
 };
 
 export default function RootLayout({
