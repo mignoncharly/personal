@@ -1,0 +1,62 @@
+# Standalone-Deployment "personal" – isoliert von allen anderen Apps.
+# Projektname "personal" => Volumes/Netzwerke werden personal_* benannt.
+name: personal
+
+services:
+  personal-postgres:
+    image: postgres:18-alpine
+    container_name: personal-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - personal_pgdata:/var/lib/postgresql/data
+    networks:
+      - personal_net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  personal-backend:
+    build: ./backend
+    image: personal-backend
+    container_name: personal-backend
+    restart: unless-stopped
+    env_file: .env
+    depends_on:
+      personal-postgres:
+        condition: service_healthy
+    volumes:
+      - ./storage:/app/storage
+      - ./logs:/app/logs
+    ports:
+      - "127.0.0.1:8001:8000"   # nur lokal -> Nginx (Host) proxyt hierauf
+    networks:
+      - personal_net
+
+  personal-frontend:
+    build:
+      context: ./frontend
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
+    image: personal-frontend
+    container_name: personal-frontend
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+    ports:
+      - "127.0.0.1:3001:3000"   # nur lokal -> Nginx (Host) proxyt hierauf
+    networks:
+      - personal_net
+
+volumes:
+  personal_pgdata:
+    name: personal_pgdata
+
+networks:
+  personal_net:
+    name: personal_net

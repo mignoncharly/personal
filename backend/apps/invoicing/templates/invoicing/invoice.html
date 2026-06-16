@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <style>
+    @page { size: a4; margin: 1.5cm 1.8cm; }
+    body { font-family: Helvetica, sans-serif; font-size: 10pt; color: #000; }
+    h1 { text-align: center; font-size: 17pt; margin: 0 0 14px 0; }
+    h2 { text-align: center; font-size: 12pt; margin: 12px 0 8px 0; }
+    .muted { color: #333; }
+    .block { margin-bottom: 9px; line-height: 1.3; }
+    .bold { font-weight: bold; }
+    .right { text-align: right; }
+    .center { text-align: center; }
+    table.items { width: 100%; border-collapse: collapse; margin-top: 6px; }
+    table.items th, table.items td {
+      border: 1px solid #bbb; padding: 5px 6px; font-size: 9.5pt; vertical-align: top;
+    }
+    table.items th { background-color: #f2f2f2; text-align: left; font-weight: bold; }
+    td.num, th.num { text-align: right; }
+    tr.sum td { border: 1px solid #bbb; font-weight: bold; }
+    .footer { margin-top: 16px; font-size: 9pt; }
+    .footer .center { margin: 3px 0; }
+    .bankline { margin-top: 12px; text-align: center; font-size: 8.5pt; color: #222; }
+  </style>
+</head>
+<body>
+  {% if company.logo_path %}<img src="{{ company.logo_path }}" style="max-height:70px;" /><br />{% endif %}
+  <h1>{{ company.name }}</h1>
+
+  <div class="block muted">
+    {{ company.name }}<br />
+    {{ company.street }}<br />
+    {{ company.zip_city }}<br />
+    {% if company.phone %}Telefonnummer: {{ company.phone }}<br />{% endif %}
+    {% if company.email %}Email: {{ company.email }}{% endif %}
+  </div>
+
+  <div class="block">
+    {{ customer.name }}<br />
+    {% if customer.contact_person %}Attn: {{ customer.contact_person }}<br />{% endif %}
+    {{ customer.street }}<br />
+    {{ customer.zip_code }} {{ customer.city }}<br />
+    {% if customer.phone %}Telefonnummer: {{ customer.phone }}<br />{% endif %}
+    {% if customer.fax %}Fax: {{ customer.fax }}<br />{% endif %}
+    {% if customer.email %}Email: {{ customer.email }}{% endif %}
+  </div>
+
+  <div class="block">
+    <span class="bold">Sehr geehrte Damen und Herren{% if customer.contact_person %} ({{ customer.contact_person }}){% endif %},</span>
+  </div>
+  <div class="block">
+    Vielen Dank für Ihren Auftrag und das damit verbundene Vertrauen.<br />
+    Hiermit stellen wir Ihnen folgende Leistungen in Rechnung:
+  </div>
+
+  <div class="block bold">
+    Rechnung Nr.: {{ invoice.number }} | Datum: {{ invoice_date }}
+  </div>
+
+  <h2>Leistungszeitraum {{ period_start }} – {{ period_end }}</h2>
+
+  <table class="items">
+    <thead>
+      <tr>
+        <th style="width:6%;">No.</th>
+        <th style="width:46%;">Bezeichnung</th>
+        <th class="num" style="width:16%;">Bezahlt (Std.)</th>
+        <th class="num" style="width:16%;">Faktor (€)</th>
+        <th class="num" style="width:16%;">Betrag (€)</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for line in lines %}
+      <tr>
+        <td>{{ line.no }}</td>
+        <td>{{ line.desc }}</td>
+        <td class="num">{{ line.std }}</td>
+        <td class="num">{{ line.factor }}</td>
+        <td class="num">{{ line.betrag }}</td>
+      </tr>
+      {% endfor %}
+      <tr class="sum">
+        <td colspan="4">Zwischensumme</td>
+        <td class="num">{{ subtotal }}</td>
+      </tr>
+      {% if is_small_business %}
+      <tr class="sum">
+        <td colspan="4">Gesamtbetrag</td>
+        <td class="num">{{ gross }}</td>
+      </tr>
+      {% else %}
+      <tr class="sum">
+        <td colspan="4">Umsatzsteuer ({{ vat_rate }}%)</td>
+        <td class="num">{{ vat }}</td>
+      </tr>
+      <tr class="sum">
+        <td colspan="4">Gesamtbetrag Brutto</td>
+        <td class="num">{{ gross }}</td>
+      </tr>
+      {% endif %}
+    </tbody>
+  </table>
+
+  {% if is_small_business %}
+  <p class="center" style="margin-top:8px;">{{ small_business_note }}</p>
+  {% endif %}
+
+  <div class="footer">
+    <p class="center">Vielen Dank für die gute Zusammenarbeit.</p>
+    <p class="center">Bitte überweisen Sie den fälligen Rechnungsbetrag (Zahlungsziel: {{ due_date }})
+      unter Angabe der Rechnungsnummer auf das unten angegebene Konto.</p>
+    <p class="center">Mit freundlichen Grüßen,<br />{{ company.name }}</p>
+    <div class="bankline">
+      {% if company.bank_name %}{{ company.bank_name }}, {% endif %}IBAN: {{ company.iban }}, BIC: {{ company.bic }}.<br />
+      Unter Verwendungszweck tragen Sie bitte Ihre Rechnungsnummer ein.<br />
+      {% if company.vat_id %}USt-IdNr.: {{ company.vat_id }}{% endif %}{% if company.tax_number %} | Steuernr.: {{ company.tax_number }}{% endif %} | {{ company.name }}
+    </div>
+  </div>
+</body>
+</html>

@@ -1,0 +1,19 @@
+[Unit]
+Description=Personal (Mouvin) Next.js Frontend
+After=network.target
+
+[Service]
+Type=simple
+User=mignon
+Group=mignon
+WorkingDirectory=/home/mignon/apps/personal/frontend
+Environment=NODE_ENV=production
+Environment=PORT=3002
+Environment=HOSTNAME=127.0.0.1
+Environment=PATH=/home/mignon/apps/personal/.node/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+ExecStart=/home/mignon/apps/personal/.node/bin/node /home/mignon/apps/personal/frontend/node_modules/next/dist/bin/next start -H 127.0.0.1 -p 3002
+Restart=on-failure
+RestartSec=5s
+
+[Install]
+WantedBy=multi-user.target

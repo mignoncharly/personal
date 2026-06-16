@@ -1,0 +1,31 @@
+[Unit]
+Description=Personal (Mouvin) Django API - Gunicorn
+After=network.target postgresql.service
+Wants=postgresql.service
+
+[Service]
+Type=simple
+User=mignon
+Group=www-data
+WorkingDirectory=/home/mignon/apps/personal/backend
+EnvironmentFile=/home/mignon/apps/personal/.env
+Environment="DJANGO_SETTINGS_MODULE=config.settings"
+RuntimeDirectory=personal
+RuntimeDirectoryMode=0750
+ExecStartPre=/usr/bin/mkdir -p /home/mignon/apps/personal/logs
+ExecStart=/home/mignon/apps/personal/backend/.venv/bin/gunicorn \
+  --workers 3 \
+  --threads 2 \
+  --timeout 120 \
+  --access-logfile /home/mignon/apps/personal/logs/gunicorn_access.log \
+  --error-logfile /home/mignon/apps/personal/logs/gunicorn_error.log \
+  --bind unix:/run/personal/gunicorn.sock \
+  config.wsgi:application
+ExecReload=/bin/kill -s HUP $MAINPID
+KillMode=mixed
+TimeoutStopSec=30
+Restart=on-failure
+RestartSec=5s
+
+[Install]
+WantedBy=multi-user.target

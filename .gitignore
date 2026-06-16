@@ -1,0 +1,46 @@
+# ---- Python / Django ----
+backend/.venv/
+backend/venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+backend/staticfiles/
+backend/media/
+*.sqlite3
+
+# ---- Node / Next.js ----
+node_modules/
+.node/
+frontend/.next/
+frontend/out/
+frontend/build/
+.npm/
+
+# ---- Environment & secrets ----
+.env
+.env.*
+!.env.example
+!.env.production.example
+*.pem
+
+# ---- IDE / OS ----
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# ---- Generated PDFs / backups ----
+backend/invoices/
+
+# ---- Production storage (Inhalte werden auf dem Server erzeugt) ----
+storage/static/
+storage/media/
+storage/invoices/
+logs/*
+backups/*
+!**/.gitkeep
+
+# ---- Logs ----
+*.log

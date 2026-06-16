@@ -1,0 +1,22 @@
+# Ruff-Konfiguration für das Django-Backend.
+target-version = "py312"
+line-length = 100
+
+exclude = [
+    ".venv",
+    "**/migrations/*",
+    "scripts/*",  # Entwickler-Smoke-Skripte
+]
+
+[lint]
+# E/F = pyflakes+pycodestyle, I = isort, UP = pyupgrade, B = bugbear, DJ = flake8-django.
+select = ["E", "F", "I", "UP", "B", "DJ"]
+ignore = [
+    "E501",  # Zeilenlänge wird durch line-length geregelt, lange Strings tolerieren
+    # Domänenfehler (ValueError) werden bewusst in DRF-ValidationError übersetzt;
+    # die Kette ist für die API-Antwort irrelevant.
+    "B904",
+]
+
+[lint.isort]
+known-first-party = ["apps", "config"]
