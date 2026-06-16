@@ -76,17 +76,11 @@ Für Deploys sollte der Benutzer `mignon` die begrenzten sudo-Rechte aus
 ./scripts/restart-prod.sh
 ```
 
-### www-Weiterleitung
+### Domain
 
-Die kanonische URL ist `https://personal.meinpflegeweg.com`. `www.personal.meinpflegeweg.com`
-soll per DNS auf denselben Server zeigen und dann auf die kanonische Domain weiterleiten.
-Nach DNS-Anlage Zertifikat erweitern und nginx neu laden:
-
-```bash
-sudo certbot --nginx -d personal.meinpflegeweg.com -d www.personal.meinpflegeweg.com
-sudo nginx -t
-sudo systemctl reload nginx
-```
+Die einzige (kanonische) URL ist `https://personal.meinpflegeweg.com`. Die
+`www.`-Variante wird bewusst **nicht** genutzt (kein DNS-Eintrag, kein Zertifikat)
+– bei einer Subdomain ist `www.` unüblich und unnötig.
 
 Die nginx-Vorlagen liegen unter `deploy/nginx-personal.meinpflegeweg.com.conf` und
 `nginx/personal.meinpflegeweg.com.conf`.
